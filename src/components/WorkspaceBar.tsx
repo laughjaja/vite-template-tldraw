@@ -155,7 +155,7 @@ export function WorkspaceBar({
 		<header className="ws-bar" onKeyDown={(e) => e.stopPropagation()}>
 			<div className="ws-bar-group">
 				<span className="ws-brand">
-					<strong>tldraw</strong> Studio
+					<strong>jastldraw</strong>
 				</span>
 				<span className="ws-divider" />
 				<button type="button" className="ws-bar-btn" onClick={onOpenMermaid} title="Mermaid Diagram Studio">

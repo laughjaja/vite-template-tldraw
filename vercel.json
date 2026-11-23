@@ -1,5 +1,14 @@
 {
 	"buildCommand": "npm run build",
 	"outputDirectory": "dist",
-	"framework": "vite"
+	"framework": "vite",
+	"functions": {
+		"api/agent/chat.ts": {
+			"maxDuration": 60
+		}
+	},
+	"rewrites": [
+		{ "source": "/api/(.*)", "destination": "/api/$1" },
+		{ "source": "/((?!api/|assets/|favicon).*)", "destination": "/index.html" }
+	]
 }
