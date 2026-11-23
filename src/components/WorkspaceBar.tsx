@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { exportAs, type Editor, type TLEditorSnapshot } from 'tldraw'
+import type { CanvasGridStyle } from './CustomCanvasGrid'
 import './WorkspaceBar.css'
 
 interface WorkspaceBarProps {
@@ -16,6 +17,8 @@ interface WorkspaceBarProps {
 	onOpenPdfEditor: () => void
 	hasActiveImage: boolean
 	hasActivePdf: boolean
+	gridStyle: CanvasGridStyle
+	onCycleGridStyle: () => void
 	isSyncEnabled: boolean
 	onToggleSync: () => void
 	syncPeerCount: number
@@ -36,12 +39,13 @@ export function WorkspaceBar({
 	onOpenPdfEditor,
 	hasActiveImage,
 	hasActivePdf,
+	gridStyle,
+	onCycleGridStyle,
 	isSyncEnabled,
 	onToggleSync,
 	syncPeerCount,
 	onThemeChange,
 }: WorkspaceBarProps) {
-	const [isGridMode, setIsGridMode] = useState(false)
 	const [isReadonly, setIsReadonly] = useState(false)
 	const [isSnapMode, setIsSnapMode] = useState(false)
 	const [isDark, setIsDark] = useState(false)
@@ -56,7 +60,6 @@ export function WorkspaceBar({
 			const inst = editor.getInstanceState()
 			const prefs = editor.user.getUserPreferences()
 			const dark = prefs.colorScheme === 'dark'
-			setIsGridMode(inst.isGridMode)
 			setIsReadonly(inst.isReadonly)
 			setIsSnapMode(prefs.isSnapMode)
 			setIsDark(dark)
@@ -71,11 +74,6 @@ export function WorkspaceBar({
 	const showToast = (msg: string) => {
 		setToast(msg)
 		window.setTimeout(() => setToast((cur) => (cur === msg ? null : cur)), 2400)
-	}
-
-	const toggleGrid = () => {
-		if (!editor) return
-		editor.updateInstanceState({ isGridMode: !isGridMode })
 	}
 
 	const toggleSnap = () => {
@@ -196,11 +194,11 @@ export function WorkspaceBar({
 			<div className="ws-bar-group">
 				<button
 					type="button"
-					className={`ws-bar-btn ${isGridMode ? 'active' : ''}`}
-					onClick={toggleGrid}
-					title="Toggle grid"
+					className={`ws-bar-btn ${gridStyle !== 'none' ? 'active' : ''}`}
+					onClick={onCycleGridStyle}
+					title="Cycle canvas background: Dots → Lines → Blank"
 				>
-					Grid
+					Canvas: {gridStyle === 'dots' ? 'Dots' : gridStyle === 'lines' ? 'Lines' : 'Blank'}
 				</button>
 				<button
 					type="button"

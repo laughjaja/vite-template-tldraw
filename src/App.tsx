@@ -1,11 +1,20 @@
-import { useState } from 'react'
-import { Tldraw, type Editor } from 'tldraw'
+import { useEffect, useMemo, useState } from 'react'
+import { Tldraw, type Editor, type TLComponents } from 'tldraw'
 import { useGeminiAgent } from './agent/useGeminiAgent'
+import { BottomToolbar } from './components/BottomToolbar'
 import { ChatSidebar } from './components/ChatSidebar'
-import { DrawingToolsBar } from './components/DrawingToolsBar'
+import {
+	createCanvasGridComponent,
+	type CanvasGridStyle,
+} from './components/CustomCanvasGrid'
 import { WorkspaceBar } from './components/WorkspaceBar'
 import { ImageAnnotatorModal } from './features/annotator/ImageAnnotatorModal'
 import type { AnnotatedImageSession } from './features/annotator/imageAnnotatorUtils'
+import {
+	applyColorSettingsToEditor,
+	loadUserColorSettings,
+	type UserColorSettings,
+} from './features/colors/colorUtils'
 import { CommentsPanel } from './features/comments/CommentsPanel'
 import { useComments } from './features/comments/useComments'
 import { DocumentModal } from './features/document/DocumentModal'
@@ -17,6 +26,17 @@ import type { PdfDocumentSession } from './features/pdf/pdfEditorUtils'
 import { useBroadcastSync } from './features/sync/useBroadcastSync'
 
 const CUSTOM_SHAPE_UTILS = [DocumentShapeUtil]
+const GRID_STORAGE_KEY = 'jastldraw-grid-style-v1'
+
+function loadGridStyle(): CanvasGridStyle {
+	try {
+		const raw = localStorage.getItem(GRID_STORAGE_KEY)
+		if (raw === 'dots' || raw === 'lines' || raw === 'none') return raw
+	} catch {
+		// Default to dot canvas
+	}
+	return 'dots'
+}
 
 function App() {
 	const [editor, setEditor] = useState<Editor | null>(null)
@@ -31,16 +51,46 @@ function App() {
 	const [activePdfSession, setActivePdfSession] = useState<PdfDocumentSession | null>(null)
 	const [isSyncEnabled, setIsSyncEnabled] = useState(true)
 	const [isDarkTheme, setIsDarkTheme] = useState(false)
+	const [gridStyle, setGridStyle] = useState<CanvasGridStyle>(() => loadGridStyle())
+	const [colorSettings, setColorSettings] = useState<UserColorSettings>(() =>
+		loadUserColorSettings()
+	)
 
 	const agent = useGeminiAgent(editor)
 	const comments = useComments(editor)
 	const sync = useBroadcastSync(editor, isSyncEnabled)
 
+	// Persist grid style and sync tldraw's isGridMode flag
+	useEffect(() => {
+		try {
+			localStorage.setItem(GRID_STORAGE_KEY, gridStyle)
+		} catch {
+			// Ignore quota errors
+		}
+		if (editor) {
+			editor.updateInstanceState({ isGridMode: gridStyle !== 'none' })
+		}
+	}, [editor, gridStyle])
+
+	const cycleGridStyle = () => {
+		setGridStyle((cur) => (cur === 'dots' ? 'lines' : cur === 'lines' ? 'none' : 'dots'))
+	}
+
+	const tldrawComponents = useMemo<TLComponents>(
+		() => ({
+			// Hide built-in bottom toolbar so our customizable BottomToolbar has zero overlap
+			Toolbar: null,
+			Grid: createCanvasGridComponent(gridStyle, isDarkTheme),
+		}),
+		[gridStyle, isDarkTheme]
+	)
+
 	const handleMount = (mountedEditor: Editor) => {
-		// Ensure drawing tools are always unlocked on initial load
 		if (mountedEditor.getInstanceState().isReadonly) {
 			mountedEditor.updateInstanceState({ isReadonly: false })
 		}
+		mountedEditor.updateInstanceState({ isGridMode: gridStyle !== 'none' })
+		applyColorSettingsToEditor(mountedEditor, colorSettings, true)
 		setEditor(mountedEditor)
 	}
 
@@ -79,6 +129,8 @@ function App() {
 				onOpenPdfEditor={() => setIsPdfEditorOpen(true)}
 				hasActiveImage={Boolean(activeImageSession)}
 				hasActivePdf={Boolean(activePdfSession)}
+				gridStyle={gridStyle}
+				onCycleGridStyle={cycleGridStyle}
 				isSyncEnabled={isSyncEnabled}
 				onToggleSync={() => setIsSyncEnabled((enabled) => !enabled)}
 				syncPeerCount={sync.peerCount}
@@ -86,14 +138,20 @@ function App() {
 			/>
 
 			<div className="app-main">
-				<DrawingToolsBar editor={editor} />
-
 				<div className="canvas-pane">
 					<Tldraw
 						persistenceKey="tldraw-gemini-workspace"
 						shapeUtils={CUSTOM_SHAPE_UTILS}
+						components={tldrawComponents}
 						options={{ deepLinks: true }}
 						onMount={handleMount}
+					/>
+
+					<BottomToolbar
+						editor={editor}
+						isDark={isDarkTheme}
+						colorSettings={colorSettings}
+						onColorSettingsChange={setColorSettings}
 					/>
 
 					{/* Floating comment pins & live multi-tab peer cursors */}

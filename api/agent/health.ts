@@ -1,11 +1,30 @@
-import { getHealthPayload } from '../../server/geminiCore.ts'
+const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash'
+const SUPPORTED_GEMINI_MODELS = [
+	'gemini-3.6-flash',
+	'gemini-3.5-flash',
+	'gemini-3.5-flash-lite',
+	'gemini-3.8-flash',
+]
 
 export function GET(): Response {
-	return new Response(JSON.stringify(getHealthPayload()), {
-		status: 200,
-		headers: {
-			'Content-Type': 'application/json; charset=utf-8',
-			'Cache-Control': 'no-store',
+	const key = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim()
+	const apiKeyConfigured = Boolean(key && key.length > 0)
+
+	return Response.json(
+		{
+			ok: apiKeyConfigured,
+			apiKeyConfigured,
+			model: DEFAULT_GEMINI_MODEL,
+			availableModels: SUPPORTED_GEMINI_MODELS,
+			message: apiKeyConfigured
+				? 'Connected to Gemini API server endpoint'
+				: 'GEMINI_API_KEY is not configured in Vercel Environment Variables. Add GEMINI_API_KEY in Vercel Project Settings and redeploy.',
 		},
-	})
+		{
+			status: 200,
+			headers: {
+				'Cache-Control': 'no-store',
+			},
+		}
+	)
 }
