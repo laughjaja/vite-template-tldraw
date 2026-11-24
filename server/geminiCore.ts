@@ -29,7 +29,7 @@ export function getHealthPayload(): AgentHealthResponse {
 		availableModels: [...SUPPORTED_GEMINI_MODELS],
 		message: apiKey
 			? 'Connected to Gemini API server endpoint'
-			: 'GEMINI_API_KEY is not set in the server environment. Add GEMINI_API_KEY in Codespaces Secrets or Vercel Environment Variables.',
+			: 'GEMINI_API_KEY is not set in the server environment. Add GEMINI_API_KEY to the app .env file.',
 	}
 }
 

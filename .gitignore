@@ -2,5 +2,6 @@
 node_modules
 .yarn/
 dist
+.server-dist
 .env
 .env.*

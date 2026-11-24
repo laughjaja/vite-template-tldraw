@@ -1,13 +1,38 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Tldraw, type Editor, type TLComponents } from 'tldraw'
-import { useGeminiAgent } from './agent/useGeminiAgent'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+	DefaultSizeStyle,
+	Tldraw,
+	type Editor,
+	type TLComponents,
+	type TLUiOverrides,
+} from 'tldraw'
 import { BottomToolbar } from './components/BottomToolbar'
-import { ChatSidebar } from './components/ChatSidebar'
 import {
 	createCanvasGridComponent,
 	type CanvasGridStyle,
 } from './components/CustomCanvasGrid'
 import { WorkspaceBar } from './components/WorkspaceBar'
+import { AgentPanel } from './features/agent/AgentPanel'
+import { MakeRealDialog } from './features/makeReal/MakeRealDialog'
+import type { TldrawAgentApp } from './officialAgent/agent/TldrawAgentApp'
+import { TldrawAgentAppProvider } from './officialAgent/agent/TldrawAgentAppProvider'
+import { AgentHighlightOverlayUtil } from './officialAgent/overlays/AgentHighlightOverlayUtil'
+import { TargetAreaTool } from './officialAgent/tools/TargetAreaTool'
+import { TargetShapeTool } from './officialAgent/tools/TargetShapeTool'
+import { PreviewShapeUtil } from './features/makeReal/PreviewShape'
+import { WorkspacePanel } from './features/workspaces/WorkspacePanel'
+import { WorkflowPanel } from './features/workflow/WorkflowPanel'
+import { Chat } from './officialChat/components/Chat'
+import { OnCanvasComponentPicker } from './workflowOfficial/components/OnCanvasComponentPicker'
+import { WorkflowRegions } from './workflowOfficial/components/WorkflowRegions'
+import { overrides } from './workflowOfficial/components/WorkflowToolbar'
+import { ConnectionBindingUtil } from './workflowOfficial/connection/ConnectionBindingUtil'
+import { ConnectionCenterHandleOverlayUtil } from './workflowOfficial/connection/ConnectionCenterHandleOverlayUtil'
+import { ConnectionShapeUtil } from './workflowOfficial/connection/ConnectionShapeUtil'
+import { keepConnectionsAtBottom } from './workflowOfficial/connection/keepConnectionsAtBottom'
+import { disableTransparency } from './workflowOfficial/disableTransparency'
+import { NodeShapeUtil } from './workflowOfficial/nodes/NodeShapeUtil'
+import { PointingPort } from './workflowOfficial/ports/PointingPort'
 import { ImageAnnotatorModal } from './features/annotator/ImageAnnotatorModal'
 import type { AnnotatedImageSession } from './features/annotator/imageAnnotatorUtils'
 import {
@@ -25,7 +50,35 @@ import { PdfEditorModal } from './features/pdf/PdfEditorModal'
 import type { PdfDocumentSession } from './features/pdf/pdfEditorUtils'
 import { useBroadcastSync } from './features/sync/useBroadcastSync'
 
-const CUSTOM_SHAPE_UTILS = [DocumentShapeUtil]
+DefaultSizeStyle.setDefaultValue('s')
+
+const CUSTOM_SHAPE_UTILS = [DocumentShapeUtil, PreviewShapeUtil, NodeShapeUtil, ConnectionShapeUtil]
+const BINDING_UTILS = [ConnectionBindingUtil]
+const OVERLAY_UTILS = [ConnectionCenterHandleOverlayUtil, AgentHighlightOverlayUtil]
+const AGENT_TOOLS = [TargetShapeTool, TargetAreaTool]
+const AGENT_OVERRIDES: TLUiOverrides = {
+	tools: (editor, tools) => ({
+		...tools,
+		'target-area': {
+			id: 'target-area',
+			label: 'Pick Area',
+			kbd: 'c',
+			icon: 'tool-frame',
+			onSelect() {
+				editor.setCurrentTool('target-area')
+			},
+		},
+		'target-shape': {
+			id: 'target-shape',
+			label: 'Pick Shape',
+			kbd: 's',
+			icon: 'tool-frame',
+			onSelect() {
+				editor.setCurrentTool('target-shape')
+			},
+		},
+	}),
+}
 const GRID_STORAGE_KEY = 'jastldraw-grid-style-v1'
 
 function loadGridStyle(): CanvasGridStyle {
@@ -41,8 +94,12 @@ function loadGridStyle(): CanvasGridStyle {
 function App() {
 	const [editor, setEditor] = useState<Editor | null>(null)
 	const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+	const [sidebarTab, setSidebarTab] = useState<'chat' | 'agent' | 'workflow' | 'workspaces'>('chat')
+	const [isAgentEnabled, setIsAgentEnabled] = useState(false)
+	const [agentApp, setAgentApp] = useState<TldrawAgentApp | null>(null)
 	const [isCommentsOpen, setIsCommentsOpen] = useState(false)
 	const [isMermaidOpen, setIsMermaidOpen] = useState(false)
+	const [isMakeRealOpen, setIsMakeRealOpen] = useState(false)
 	const [isKanbanOpen, setIsKanbanOpen] = useState(false)
 	const [isDocumentOpen, setIsDocumentOpen] = useState(false)
 	const [isImageAnnotatorOpen, setIsImageAnnotatorOpen] = useState(false)
@@ -56,9 +113,10 @@ function App() {
 		loadUserColorSettings()
 	)
 
-	const agent = useGeminiAgent(editor)
 	const comments = useComments(editor)
 	const sync = useBroadcastSync(editor, isSyncEnabled)
+
+	const handleAgentUnmount = useCallback(() => setAgentApp(null), [])
 
 	// Persist grid style and sync tldraw's isGridMode flag
 	useEffect(() => {
@@ -78,9 +136,14 @@ function App() {
 
 	const tldrawComponents = useMemo<TLComponents>(
 		() => ({
-			// Hide built-in bottom toolbar so our customizable BottomToolbar has zero overlap
 			Toolbar: null,
 			Grid: createCanvasGridComponent(gridStyle, isDarkTheme),
+			InFrontOfTheCanvas: () => (
+				<>
+					<OnCanvasComponentPicker />
+					<WorkflowRegions />
+				</>
+			),
 		}),
 		[gridStyle, isDarkTheme]
 	)
@@ -91,6 +154,12 @@ function App() {
 		}
 		mountedEditor.updateInstanceState({ isGridMode: gridStyle !== 'none' })
 		applyColorSettingsToEditor(mountedEditor, colorSettings, true)
+		keepConnectionsAtBottom(mountedEditor)
+		disableTransparency(mountedEditor, ['node', 'connection'])
+		const selectTool = mountedEditor.getStateDescendant('select')
+		if (selectTool && !selectTool.children?.pointing_port) {
+			selectTool.addChild(PointingPort)
+		}
 		setEditor(mountedEditor)
 	}
 
@@ -114,8 +183,8 @@ function App() {
 	}
 
 	return (
-		<div className={`app-root ${isDarkTheme ? 'theme-dark' : ''}`}>
-			<WorkspaceBar
+			<div className={`app-root ${isDarkTheme ? 'theme-dark' : ''}`}>
+				<WorkspaceBar
 				editor={editor}
 				isSidebarOpen={isSidebarOpen}
 				onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
@@ -123,6 +192,7 @@ function App() {
 				onToggleComments={() => setIsCommentsOpen((open) => !open)}
 				openCommentCount={comments.openCount}
 				onOpenMermaid={() => setIsMermaidOpen(true)}
+				onMakeReal={() => setIsMakeRealOpen(true)}
 				onOpenKanban={() => setIsKanbanOpen(true)}
 				onOpenDocument={() => setIsDocumentOpen(true)}
 				onOpenImageAnnotator={() => setIsImageAnnotatorOpen(true)}
@@ -142,10 +212,19 @@ function App() {
 					<Tldraw
 						persistenceKey="tldraw-gemini-workspace"
 						shapeUtils={CUSTOM_SHAPE_UTILS}
+						bindingUtils={BINDING_UTILS}
+						overlayUtils={OVERLAY_UTILS}
+						tools={AGENT_TOOLS}
+						overrides={[overrides, AGENT_OVERRIDES]}
 						components={tldrawComponents}
-						options={{ deepLinks: true }}
+						options={{ deepLinks: true, maxPages: 1 }}
 						onMount={handleMount}
-					/>
+					>
+						<TldrawAgentAppProvider
+							onMount={setAgentApp}
+							onUnmount={handleAgentUnmount}
+						/>
+					</Tldraw>
 
 					<BottomToolbar
 						editor={editor}
@@ -202,12 +281,6 @@ function App() {
 						</>
 					)}
 
-					{agent.isModifyingCanvas && (
-						<div className="canvas-modifying-pill" role="status" aria-live="polite">
-							<span className="chat-spinner" />
-							<span>Gemini is modifying the canvas…</span>
-						</div>
-					)}
 				</div>
 
 				{isCommentsOpen && (
@@ -226,29 +299,60 @@ function App() {
 					/>
 				)}
 
-				<ChatSidebar
-					isOpen={isSidebarOpen}
-					onToggle={() => setIsSidebarOpen((open) => !open)}
-					messages={agent.messages}
-					connectionState={agent.connectionState}
-					connectionMessage={agent.connectionMessage}
-					model={agent.model}
-					onModelChange={agent.setModel}
-					availableModels={agent.availableModels}
-					includeScreenshot={agent.includeScreenshot}
-					onToggleScreenshot={agent.setIncludeScreenshot}
-					isGenerating={agent.isGenerating}
-					isModifyingCanvas={agent.isModifyingCanvas}
-					activePhase={agent.activePhase}
-					globalError={agent.globalError}
-					canvasStats={agent.canvasStats}
-					onSend={agent.sendMessage}
-					onStop={agent.stopGeneration}
-					onClear={agent.clearHistory}
-					onRetryHealth={agent.checkHealth}
-				/>
+				<aside className={`chat-sidebar ${isSidebarOpen ? 'is-open' : ''}`}>
+					<div className="chat-sidebar-header">
+						<button type="button" onClick={() => setIsSidebarOpen((open) => !open)}>
+							{isSidebarOpen ? 'Hide' : 'Show'}
+						</button>
+						<nav className="native-sidebar-tabs" aria-label="Assistant panels">
+							<button
+								type="button"
+								className={sidebarTab === 'chat' ? 'active' : ''}
+								onClick={() => setSidebarTab('chat')}
+							>
+								Chat
+							</button>
+							<button
+								type="button"
+								className={sidebarTab === 'agent' ? 'active' : ''}
+								onClick={() => setSidebarTab('agent')}
+							>
+								Agent
+							</button>
+							<button
+								type="button"
+								className={sidebarTab === 'workflow' ? 'active' : ''}
+								onClick={() => setSidebarTab('workflow')}
+							>
+								Workflow
+							</button>
+							<button
+								type="button"
+								className={sidebarTab === 'workspaces' ? 'active' : ''}
+								onClick={() => setSidebarTab('workspaces')}
+							>
+								Files
+							</button>
+						</nav>
+					</div>
+					<div className="native-sidebar-content">
+						{sidebarTab === 'chat' && <Chat editor={editor ?? undefined} />}
+						{sidebarTab === 'agent' && (
+							<AgentPanel
+								enabled={isAgentEnabled}
+								onEnabledChange={setIsAgentEnabled}
+								agentApp={agentApp}
+							/>
+						)}
+						{sidebarTab === 'workflow' && <WorkflowPanel editor={editor ?? undefined} />}
+						{sidebarTab === 'workspaces' && (
+							<WorkspacePanel editor={editor} comments={comments.comments} />
+						)}
+					</div>
+				</aside>
 			</div>
 
+			{isMakeRealOpen && <MakeRealDialog editor={editor} onClose={() => setIsMakeRealOpen(false)} />}
 			{isMermaidOpen && <MermaidModal editor={editor} onClose={() => setIsMermaidOpen(false)} />}
 			{isKanbanOpen && <KanbanModal editor={editor} onClose={() => setIsKanbanOpen(false)} />}
 			{isDocumentOpen && <DocumentModal editor={editor} onClose={() => setIsDocumentOpen(false)} />}
@@ -268,7 +372,7 @@ function App() {
 					onClose={() => setIsPdfEditorOpen(false)}
 				/>
 			)}
-		</div>
+			</div>
 	)
 }
 

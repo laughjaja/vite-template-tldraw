@@ -1,6 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import 'tldraw/tldraw.css'
+import './officialChat/styles.css'
+import './workflowOfficial/index.css'
 import App from './App.tsx'
 import './index.css'
 

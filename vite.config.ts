@@ -1,8 +1,13 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
-import { geminiAgentPlugin } from './server/geminiMiddleware.ts'
+import { defineConfig, loadEnv } from 'vite'
+import { nativeApiPlugin } from './server/nativeApiPlugin.ts'
 
-// https://vitejs.dev/config/
-export default defineConfig({
-	plugins: [react(), geminiAgentPlugin()],
+export default defineConfig(({ mode }) => {
+	const env = loadEnv(mode, process.cwd(), '')
+	return {
+		plugins: [react(), nativeApiPlugin(env)],
+		server: {
+			allowedHosts: ['jcs-macbook-air.tail8a223f.ts.net'],
+		},
+	}
 })

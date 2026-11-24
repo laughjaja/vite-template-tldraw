@@ -55,7 +55,7 @@ async function handleChat(req: IncomingMessage, res: ServerResponse) {
 	if (!apiKey) {
 		sendJson(res, 503, {
 			error:
-				'GEMINI_API_KEY is not available in the server environment. Stop and restart this Codespace (or add GEMINI_API_KEY in Vercel Environment Variables).',
+				'GEMINI_API_KEY is not available in the server environment. Add GEMINI_API_KEY to the app .env file and restart the app.',
 		})
 		return
 	}
@@ -108,7 +108,7 @@ async function handleChat(req: IncomingMessage, res: ServerResponse) {
 	}
 }
 
-function attachMiddleware(middlewares: Connect.Server) {
+export function registerLegacyAgentRoutes(middlewares: Connect.Server) {
 	middlewares.use('/api/agent/health', (req, res) => {
 		void handleHealth(req, res)
 	})
@@ -122,10 +122,10 @@ export function geminiAgentPlugin(): Plugin {
 	return {
 		name: 'gemini-tldraw-agent-api',
 		configureServer(server) {
-			attachMiddleware(server.middlewares)
+			registerLegacyAgentRoutes(server.middlewares)
 		},
 		configurePreviewServer(server) {
-			attachMiddleware(server.middlewares)
+			registerLegacyAgentRoutes(server.middlewares)
 		},
 	}
 }

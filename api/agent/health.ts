@@ -18,7 +18,7 @@ export function GET(): Response {
 			availableModels: SUPPORTED_GEMINI_MODELS,
 			message: apiKeyConfigured
 				? 'Connected to Gemini API server endpoint'
-				: 'GEMINI_API_KEY is not configured in Vercel Environment Variables. Add GEMINI_API_KEY in Vercel Project Settings and redeploy.',
+				: 'GEMINI_API_KEY is not configured in the server environment. Add GEMINI_API_KEY to the app .env file and restart the app.',
 		},
 		{
 			status: 200,

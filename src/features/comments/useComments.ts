@@ -53,6 +53,20 @@ export function useComments(editor: Editor | null) {
 		}
 	}, [comments])
 
+	useEffect(() => {
+		const restoreComments = (event: Event) => {
+			const value: unknown = (event as CustomEvent).detail
+			if (!Array.isArray(value)) return
+			const valid = value.every((comment) => comment && typeof comment.id === 'string' &&
+				typeof comment.pageId === 'string' && typeof comment.text === 'string' &&
+				typeof comment.author === 'string' && typeof comment.x === 'number' &&
+				typeof comment.y === 'number' && Array.isArray(comment.replies))
+			if (valid) { setComments(value); setActiveCommentId(null) }
+		}
+		window.addEventListener('jastldraw-workspace-comments', restoreComments)
+		return () => window.removeEventListener('jastldraw-workspace-comments', restoreComments)
+	}, [])
+
 	// Recompute viewport coordinates of pins whenever camera, page, or shapes change
 	useEffect(() => {
 		if (!editor) return

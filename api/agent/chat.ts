@@ -485,7 +485,7 @@ export async function POST(request: Request): Promise<Response> {
 		return Response.json(
 			{
 				error:
-					'GEMINI_API_KEY is not configured in Vercel Environment Variables. Add GEMINI_API_KEY and redeploy.',
+					'GEMINI_API_KEY is not configured in the server environment. Add GEMINI_API_KEY to the app .env file and restart the app.',
 			},
 			{ status: 503 }
 		)

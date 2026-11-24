@@ -120,7 +120,7 @@ export function useGeminiAgent(editor: Editor | null) {
 				setConnectionState('missing_key')
 				setConnectionMessage(
 					data.message ??
-						'GEMINI_API_KEY is missing. Stop and restart this Codespace to load your secret.'
+						'GEMINI_API_KEY is missing. Add GEMINI_API_KEY to the app .env file and restart the app.'
 				)
 			}
 		} catch (err) {

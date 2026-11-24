@@ -11,6 +11,7 @@ interface WorkspaceBarProps {
 	onToggleComments: () => void
 	openCommentCount: number
 	onOpenMermaid: () => void
+	onMakeReal: () => void
 	onOpenKanban: () => void
 	onOpenDocument: () => void
 	onOpenImageAnnotator: () => void
@@ -33,6 +34,7 @@ export function WorkspaceBar({
 	onToggleComments,
 	openCommentCount,
 	onOpenMermaid,
+	onMakeReal,
 	onOpenKanban,
 	onOpenDocument,
 	onOpenImageAnnotator,
@@ -158,6 +160,14 @@ export function WorkspaceBar({
 				<span className="ws-divider" />
 				<button type="button" className="ws-bar-btn" onClick={onOpenMermaid} title="Mermaid Diagram Studio">
 					Mermaid
+				</button>
+				<button
+					type="button"
+					className="ws-bar-btn"
+					onClick={onMakeReal}
+					title="Turn the selected sketch into a real interactive design"
+				>
+					Make Real
 				</button>
 				<button type="button" className="ws-bar-btn" onClick={onOpenKanban} title="Kanban Board Builder">
 					Kanban
