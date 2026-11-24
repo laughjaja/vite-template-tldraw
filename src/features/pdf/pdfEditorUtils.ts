@@ -1,3 +1,4 @@
+import { uploadDataAsset } from '../cloud/uploadDataAsset'
 import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
@@ -199,6 +200,8 @@ export async function loadPdfOnCanvas(
 
 		cursorY += displayH + pageGap
 	}
+
+	for (const asset of assets) await uploadDataAsset(editor, asset)
 
 	editor.markHistoryStoppingPoint('load-pdf-pages')
 	editor.run(() => {

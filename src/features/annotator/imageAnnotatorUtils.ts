@@ -1,3 +1,4 @@
+import { uploadDataAsset } from '../cloud/uploadDataAsset'
 import {
 	AssetRecordType,
 	Box,
@@ -136,6 +137,8 @@ export async function loadImageForAnnotation(
 		},
 		meta: {},
 	}
+
+	await uploadDataAsset(editor, asset)
 
 	editor.markHistoryStoppingPoint('load-annotator-image')
 	editor.run(() => {

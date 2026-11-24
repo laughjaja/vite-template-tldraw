@@ -1,3 +1,4 @@
+import { uploadDataAsset } from '../cloud/uploadDataAsset'
 import mermaid from 'mermaid'
 import {
 	AssetRecordType,
@@ -330,6 +331,8 @@ export async function insertMermaidAsSvgShape(
 		},
 		meta: {},
 	}
+
+	await uploadDataAsset(editor, asset)
 
 	editor.markHistoryStoppingPoint('insert-mermaid-svg')
 	editor.run(() => {

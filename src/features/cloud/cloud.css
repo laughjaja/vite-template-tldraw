@@ -1,0 +1,10 @@
+.cloud-login { min-height: 100vh; display: grid; place-items: center; background: #f3f4f6; color: #111827; font-family: Inter, sans-serif; }
+.cloud-login form { width: min(360px, calc(100vw - 64px)); padding: 32px; border-radius: 16px; background: white; box-shadow: 0 8px 32px #0001; display: grid; gap: 14px; }
+.cloud-login h1, .cloud-login p { margin: 0; }
+.cloud-login input, .cloud-login button { font: inherit; border: 1px solid #cbd5e1; border-radius: 7px; padding: 10px; }
+.cloud-login button { background: #1d4ed8; color: white; cursor: pointer; }
+.cloud-login [role=alert] { color: #b91c1c; }
+.cloud-status { position: fixed; bottom: 88px; left: 8px; z-index: 1000; display: flex; gap: 10px; align-items: center; max-width: calc(100vw - 30px); padding: 7px 12px; border-radius: 8px; background: white; color: #111827; box-shadow: 0 1px 8px #0002; font-size: 12px; }
+.cloud-status button { border: 1px solid #cbd5e1; border-radius: 5px; background: #f8fafc; color: #111827; padding: 4px 8px; cursor: pointer; }
+.cloud-status[data-state=error], .cloud-status[data-state=offline] { background: #fef3c7; }
+.cloud-ai-parked { width: 290px; padding: 24px; border-left: 1px solid #cbd5e1; background: #f8fafc; color: #111827; font-size: 14px; }

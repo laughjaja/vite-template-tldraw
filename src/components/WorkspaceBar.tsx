@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { exportAs, type Editor, type TLEditorSnapshot } from 'tldraw'
+import { exportAs, type Editor } from 'tldraw'
+import { exportWorkspace, importWorkspace, exportLegacyComments } from '../features/cloud/workspaceSnapshot'
 import type { CanvasGridStyle } from './CustomCanvasGrid'
 import './WorkspaceBar.css'
 
@@ -19,9 +20,7 @@ interface WorkspaceBarProps {
 	hasActivePdf: boolean
 	gridStyle: CanvasGridStyle
 	onCycleGridStyle: () => void
-	isSyncEnabled: boolean
-	onToggleSync: () => void
-	syncPeerCount: number
+	cloudStatus: string
 	onThemeChange?: (isDark: boolean) => void
 }
 
@@ -41,9 +40,7 @@ export function WorkspaceBar({
 	hasActivePdf,
 	gridStyle,
 	onCycleGridStyle,
-	isSyncEnabled,
-	onToggleSync,
-	syncPeerCount,
+	cloudStatus,
 	onThemeChange,
 }: WorkspaceBarProps) {
 	const [isReadonly, setIsReadonly] = useState(false)
@@ -112,31 +109,17 @@ export function WorkspaceBar({
 		}
 	}
 
-	const handleSaveSnapshot = () => {
+	const handleSaveSnapshot = async () => {
 		setExportMenuOpen(false)
 		if (!editor) return
-		const snapshot = editor.getSnapshot()
-		const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' })
-		const url = URL.createObjectURL(blob)
-		const a = document.createElement('a')
-		a.href = url
-		a.download = `tldraw-workspace-${new Date().toISOString().slice(0, 10)}.tldr.json`
-		a.click()
-		URL.revokeObjectURL(url)
-		showToast('Saved workspace JSON snapshot')
+		try { await exportWorkspace(editor); showToast('Saved portable workspace backup') }
+		catch (error) { showToast(error instanceof Error ? error.message : 'Backup failed') }
 	}
 
 	const handleImportSnapshot = async (file: File) => {
 		if (!editor) return
-		try {
-			const text = await file.text()
-			const parsed = JSON.parse(text) as Partial<TLEditorSnapshot>
-			editor.loadSnapshot(parsed)
-			editor.zoomToFit({ animation: { duration: 300 } })
-			showToast(`Loaded ${file.name}`)
-		} catch (err) {
-			showToast(err instanceof Error ? `Invalid snapshot: ${err.message}` : 'Failed to load file')
-		}
+		try { if (await importWorkspace(editor, file)) showToast(`Imported ${file.name}`) }
+		catch (error) { showToast(error instanceof Error ? error.message : 'Import failed') }
 	}
 
 	const handleCopyDeepLink = async () => {
@@ -290,6 +273,7 @@ export function WorkspaceBar({
 							<button type="button" onClick={() => void handleCopyDeepLink()}>
 								Copy Deep Link
 							</button>
+							<button type="button" onClick={() => { exportLegacyComments(); setExportMenuOpen(false) }}>Export legacy browser comments</button>
 						</div>
 					)}
 					<input
@@ -305,23 +289,16 @@ export function WorkspaceBar({
 					/>
 				</div>
 
-				<button
-					type="button"
-					className={`ws-bar-btn ${isSyncEnabled ? 'active sync' : ''}`}
-					onClick={onToggleSync}
-					title="Sync changes and cursors live across open browser tabs"
-				>
-					{isSyncEnabled
-						? `Tab Sync${syncPeerCount > 0 ? ` (${syncPeerCount + 1})` : ''}`
-						: 'Tab Sync: Off'}
-				</button>
+				<span className={`ws-bar-btn ${cloudStatus === 'online' ? 'active sync' : ''}`} title="One shared workspace across signed-in devices">
+					{cloudStatus === 'online' ? 'Cloud sync: connected' : `Cloud sync: ${cloudStatus}`}
+				</span>
 
 				<button
 					type="button"
 					className={`ws-bar-btn ws-bar-ai ${isSidebarOpen ? 'active' : ''}`}
 					onClick={onToggleSidebar}
 				>
-					✦ Gemini AI
+					✦ AI paused
 				</button>
 			</div>
 
