@@ -12,23 +12,36 @@
 	"scripts": {
 		"dev": "vite --host",
 		"build": "tsc && vite build",
-		"preview": "vite preview"
+		"preview": "vite preview",
+		"dev:cloud": "npm run build && wrangler dev",
+		"deploy:cloud": "npm run build && wrangler deploy",
+		"check:worker": "tsc -p worker/tsconfig.json",
+		"check": "npm run build && npm run check:worker",
+		"typecheck:worker": "tsc -p worker/tsconfig.json",
+		"test:cloud-sync": "node scripts/test-cloud-sync.mjs"
 	},
 	"dependencies": {
 		"@google/genai": "^3.6.1",
+		"@tldraw/sync": "5.6.2",
+		"@tldraw/sync-core": "5.6.2",
+		"@tldraw/tlschema": "5.6.2",
+		"@tldraw/validate": "5.6.2",
 		"mammoth": "^1.13.0",
 		"mermaid": "^12.3.0",
 		"pdf-lib": "^1.17.1",
 		"pdfjs-dist": "^6.5.438",
 		"react": "^19.2.1",
 		"react-dom": "^19.2.1",
-		"tldraw": "^5.6.2"
+		"tldraw": "5.6.2"
 	},
 	"devDependencies": {
+		"@cloudflare/workers-types": "5.20261123.1",
 		"@types/react": "^19.2.7",
 		"@types/react-dom": "^19.2.3",
 		"@vitejs/plugin-react": "^6.0.1",
 		"typescript": "^5.8.3",
-		"vite": "^8.0.16"
+		"vite": "^8.0.16",
+		"wrangler": "4.167.0",
+		"ws": "8.23.0"
 	}
 }

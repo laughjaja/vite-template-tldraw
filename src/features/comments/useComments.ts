@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Editor, TLShapeId } from 'tldraw'
+import type { Editor, TLShapeId, JsonObject } from 'tldraw'
 
 export interface CommentReply {
 	id: string
@@ -23,15 +23,32 @@ export interface CanvasComment {
 
 const STORAGE_KEY = 'tldraw-gemini-comments-v1'
 
-function loadStoredComments(): CanvasComment[] {
+export function loadLegacyComments(): CanvasComment[] {
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY)
 		if (!raw) return []
 		const parsed = JSON.parse(raw)
-		return Array.isArray(parsed) ? (parsed as CanvasComment[]) : []
+		return Array.isArray(parsed) ? parsed.filter(isCanvasComment) : []
 	} catch {
 		return []
 	}
+}
+
+export const COMMENT_PREFIX = 'jastldraw-comment:'
+
+export function isCanvasComment(value: unknown): value is CanvasComment {
+	if (!value || typeof value !== 'object') return false
+	const comment = value as CanvasComment
+	return typeof comment.id === 'string' && typeof comment.pageId === 'string' &&
+		typeof comment.x === 'number' && Number.isFinite(comment.x) && typeof comment.y === 'number' && Number.isFinite(comment.y) &&
+		typeof comment.author === 'string' && typeof comment.text === 'string' &&
+		typeof comment.resolved === 'boolean' && typeof comment.createdAt === 'number' && Array.isArray(comment.replies) &&
+		comment.replies.every((reply) => reply && typeof reply.id === 'string' && typeof reply.author === 'string' && typeof reply.text === 'string' && typeof reply.createdAt === 'number')
+}
+
+export function readSharedComments(meta: JsonObject): CanvasComment[] {
+	return Object.entries(meta).filter(([key]) => key.startsWith(COMMENT_PREFIX)).map(([, value]): unknown => value)
+		.filter(isCanvasComment).sort((a, b) => b.createdAt - a.createdAt)
 }
 
 function makeId(): string {
@@ -39,19 +56,28 @@ function makeId(): string {
 }
 
 export function useComments(editor: Editor | null) {
-	const [comments, setComments] = useState<CanvasComment[]>(() => loadStoredComments())
+	const [comments, setCommentState] = useState<CanvasComment[]>([])
+	const setComments = useCallback((update: (previous: CanvasComment[]) => CanvasComment[]) => {
+		if (!editor) return
+		const document = editor.getDocumentSettings()
+		const previous = readSharedComments(document.meta)
+		const next = update(previous)
+		const meta = { ...document.meta }
+		for (const key of Object.keys(meta)) if (key.startsWith(COMMENT_PREFIX)) delete meta[key]
+		for (const comment of next) meta[COMMENT_PREFIX + comment.id] = JSON.parse(JSON.stringify(comment))
+		editor.updateDocumentSettings({ meta })
+	}, [editor])
 	const [isCommentMode, setIsCommentMode] = useState(false)
 	const [activeCommentId, setActiveCommentId] = useState<string | null>(null)
 	const [currentPageId, setCurrentPageId] = useState<string>('page:page')
 	const [pinPositions, setPinPositions] = useState<Record<string, { x: number; y: number }>>({})
 
 	useEffect(() => {
-		try {
-			localStorage.setItem(STORAGE_KEY, JSON.stringify(comments))
-		} catch {
-			// Ignore storage quota errors
-		}
-	}, [comments])
+		if (!editor) return
+		const refresh = () => setCommentState(readSharedComments(editor.getDocumentSettings().meta))
+		refresh()
+		return editor.store.listen(refresh, { scope: 'document' })
+	}, [editor])
 
 	// Recompute viewport coordinates of pins whenever camera, page, or shapes change
 	useEffect(() => {
@@ -122,7 +148,7 @@ export function useComments(editor: Editor | null) {
 			setActiveCommentId(created.id)
 			return created
 		},
-		[editor]
+		[editor, setComments]
 	)
 
 	const addReply = useCallback((commentId: string, text: string, author = 'You') => {
@@ -141,18 +167,18 @@ export function useComments(editor: Editor | null) {
 					: c
 			)
 		)
-	}, [])
+	}, [setComments])
 
 	const toggleResolve = useCallback((commentId: string) => {
 		setComments((prev) =>
 			prev.map((c) => (c.id === commentId ? { ...c, resolved: !c.resolved } : c))
 		)
-	}, [])
+	}, [setComments])
 
 	const deleteComment = useCallback((commentId: string) => {
 		setComments((prev) => prev.filter((c) => c.id !== commentId))
 		setActiveCommentId((prev) => (prev === commentId ? null : prev))
-	}, [])
+	}, [setComments])
 
 	const focusComment = useCallback(
 		(comment: CanvasComment) => {

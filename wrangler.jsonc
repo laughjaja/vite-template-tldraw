@@ -1,0 +1,54 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "jastldraw",
+	"main": "worker/worker.ts",
+	"compatibility_date": "2026-11-23",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": [
+			"/api/*"
+		]
+	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "TLDRAW_DURABLE_OBJECT",
+				"class_name": "TldrawDurableObject"
+			},
+			{
+				"name": "AUTH_RATE_LIMITER",
+				"class_name": "AuthRateLimiter"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"TldrawDurableObject",
+				"AuthRateLimiter"
+			]
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "TLDRAW_BUCKET",
+			"bucket_name": "jastldraw-assets"
+		}
+	],
+	"observability": {
+		"enabled": true
+	},
+	"account_id": "5992946a576de7271917d657e44b25ce",
+	"routes": [
+		{
+			"pattern": "jastldraw.jastudio.ca",
+			"custom_domain": true
+		}
+	]
+}

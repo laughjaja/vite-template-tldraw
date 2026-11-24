@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Tldraw, type Editor, type TLComponents } from 'tldraw'
-import { useGeminiAgent } from './agent/useGeminiAgent'
+import { Tldraw, defaultShapeUtils, defaultBindingUtils, type Editor, type TLComponents } from 'tldraw'
+import { useSync } from '@tldraw/sync'
+import { cloudAssets, syncUri } from './features/cloud/cloudStore'
+import { SessionGate } from './features/cloud/SessionGate'
 import { BottomToolbar } from './components/BottomToolbar'
-import { ChatSidebar } from './components/ChatSidebar'
 import {
 	createCanvasGridComponent,
 	type CanvasGridStyle,
@@ -23,9 +24,9 @@ import { KanbanModal } from './features/kanban/KanbanModal'
 import { MermaidModal } from './features/mermaid/MermaidModal'
 import { PdfEditorModal } from './features/pdf/PdfEditorModal'
 import type { PdfDocumentSession } from './features/pdf/pdfEditorUtils'
-import { useBroadcastSync } from './features/sync/useBroadcastSync'
 
 const CUSTOM_SHAPE_UTILS = [DocumentShapeUtil]
+const SYNC_SHAPE_UTILS = [...defaultShapeUtils, ...CUSTOM_SHAPE_UTILS]
 const GRID_STORAGE_KEY = 'jastldraw-grid-style-v1'
 
 function loadGridStyle(): CanvasGridStyle {
@@ -38,9 +39,10 @@ function loadGridStyle(): CanvasGridStyle {
 	return 'dots'
 }
 
-function App() {
+function Workspace({ signOut }: { signOut: () => void }) {
+	const store = useSync({ uri: syncUri, assets: cloudAssets, shapeUtils: SYNC_SHAPE_UTILS, bindingUtils: defaultBindingUtils })
 	const [editor, setEditor] = useState<Editor | null>(null)
-	const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+	const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 	const [isCommentsOpen, setIsCommentsOpen] = useState(false)
 	const [isMermaidOpen, setIsMermaidOpen] = useState(false)
 	const [isKanbanOpen, setIsKanbanOpen] = useState(false)
@@ -49,16 +51,14 @@ function App() {
 	const [isPdfEditorOpen, setIsPdfEditorOpen] = useState(false)
 	const [activeImageSession, setActiveImageSession] = useState<AnnotatedImageSession | null>(null)
 	const [activePdfSession, setActivePdfSession] = useState<PdfDocumentSession | null>(null)
-	const [isSyncEnabled, setIsSyncEnabled] = useState(true)
 	const [isDarkTheme, setIsDarkTheme] = useState(false)
 	const [gridStyle, setGridStyle] = useState<CanvasGridStyle>(() => loadGridStyle())
 	const [colorSettings, setColorSettings] = useState<UserColorSettings>(() =>
 		loadUserColorSettings()
 	)
 
-	const agent = useGeminiAgent(editor)
 	const comments = useComments(editor)
-	const sync = useBroadcastSync(editor, isSyncEnabled)
+	const cloudState = store.status === 'synced-remote' ? store.connectionStatus : store.status
 
 	// Persist grid style and sync tldraw's isGridMode flag
 	useEffect(() => {
@@ -131,16 +131,15 @@ function App() {
 				hasActivePdf={Boolean(activePdfSession)}
 				gridStyle={gridStyle}
 				onCycleGridStyle={cycleGridStyle}
-				isSyncEnabled={isSyncEnabled}
-				onToggleSync={() => setIsSyncEnabled((enabled) => !enabled)}
-				syncPeerCount={sync.peerCount}
+				cloudStatus={cloudState}
 				onThemeChange={setIsDarkTheme}
 			/>
 
 			<div className="app-main">
 				<div className="canvas-pane">
 					<Tldraw
-						persistenceKey="tldraw-gemini-workspace"
+						store={store}
+						licenseKey={import.meta.env.VITE_TLDRAW_LICENSE_KEY}
 						shapeUtils={CUSTOM_SHAPE_UTILS}
 						components={tldrawComponents}
 						options={{ deepLinks: true }}
@@ -176,18 +175,6 @@ function App() {
 							)
 						})}
 
-						{sync.viewportCursors.map((cursor) => (
-							<div
-								key={cursor.peerId}
-								className="ws-peer-cursor"
-								style={{ left: cursor.vx, top: cursor.vy }}
-							>
-								<span className="ws-peer-dot" style={{ background: cursor.color }} />
-								<span className="ws-peer-label" style={{ background: cursor.color }}>
-									{cursor.name}
-								</span>
-							</div>
-						))}
 					</div>
 
 					{comments.isCommentMode && (
@@ -202,12 +189,6 @@ function App() {
 						</>
 					)}
 
-					{agent.isModifyingCanvas && (
-						<div className="canvas-modifying-pill" role="status" aria-live="polite">
-							<span className="chat-spinner" />
-							<span>Gemini is modifying the canvas…</span>
-						</div>
-					)}
 				</div>
 
 				{isCommentsOpen && (
@@ -226,29 +207,14 @@ function App() {
 					/>
 				)}
 
-				<ChatSidebar
-					isOpen={isSidebarOpen}
-					onToggle={() => setIsSidebarOpen((open) => !open)}
-					messages={agent.messages}
-					connectionState={agent.connectionState}
-					connectionMessage={agent.connectionMessage}
-					model={agent.model}
-					onModelChange={agent.setModel}
-					availableModels={agent.availableModels}
-					includeScreenshot={agent.includeScreenshot}
-					onToggleScreenshot={agent.setIncludeScreenshot}
-					isGenerating={agent.isGenerating}
-					isModifyingCanvas={agent.isModifyingCanvas}
-					activePhase={agent.activePhase}
-					globalError={agent.globalError}
-					canvasStats={agent.canvasStats}
-					onSend={agent.sendMessage}
-					onStop={agent.stopGeneration}
-					onClear={agent.clearHistory}
-					onRetryHealth={agent.checkHealth}
-				/>
+				{isSidebarOpen && <aside className="cloud-ai-parked"><h2>AI assistant paused</h2><p>AI assistant is paused. Drawing and shared boards remain available.</p></aside>}
 			</div>
 
+			<div className="cloud-status" data-state={cloudState} role="status">
+				<span>{cloudState === 'online' ? 'Shared workspace connected' : cloudState === 'offline' ? 'Disconnected — reconnect before closing; unsent edits may be lost' : cloudState === 'error' ? 'Sync failed — sign in again or reload' : 'Connecting shared workspace…'}</span>
+				<button type="button" onClick={() => window.location.reload()}>Reconnect</button>
+				<button type="button" onClick={signOut}>Sign out</button>
+			</div>
 			{isMermaidOpen && <MermaidModal editor={editor} onClose={() => setIsMermaidOpen(false)} />}
 			{isKanbanOpen && <KanbanModal editor={editor} onClose={() => setIsKanbanOpen(false)} />}
 			{isDocumentOpen && <DocumentModal editor={editor} onClose={() => setIsDocumentOpen(false)} />}
@@ -272,4 +238,6 @@ function App() {
 	)
 }
 
-export default App
+export default function App() {
+	return <SessionGate>{(signOut) => <Workspace signOut={signOut} />}</SessionGate>
+}
